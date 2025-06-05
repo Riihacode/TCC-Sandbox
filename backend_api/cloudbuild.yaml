@@ -1,0 +1,47 @@
+steps:
+  # Step 1: Ambil file .env dari bucket
+  - name: "gcr.io/cloud-builders/gsutil"
+    args: ["cp", "${_ENV}", ".env"]
+    dir : "backend_api"
+
+  # Step 2: Ambil JSON key dari Secret Manager
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        echo ">>> Fetching GCS JSON key from Secret Manager..."
+        gcloud secrets versions access latest --secret="gcs-key" > ./gcs-key.json
+    dir: "backend_api"
+
+  # Step 3: Build Docker image
+  - name: "gcr.io/cloud-builders/docker"
+    dir : "backend_api"
+    args: ["build", "-t", "gcr.io/$PROJECT_ID/be-sosmed", "."]
+
+  # Step 4: Push Docker image
+  - name: "gcr.io/cloud-builders/docker"
+    dir : "backend_api"
+    args: ["push", "gcr.io/$PROJECT_ID/be-sosmed"]
+
+  # Step 5: Deploy to Cloud Run
+  - name: "gcr.io/cloud-builders/gcloud"
+    entrypoint: gcloud
+    args:
+      [
+        "run",
+        "deploy",
+        "be-sosmed",
+        "--image",
+        "gcr.io/$PROJECT_ID/be-sosmed",
+        "--timeout",
+        "1000s",
+        "--port",
+        "3000",
+        "--region",
+        "us-central1",
+        "--allow-unauthenticated",
+      ]
+
+options:
+  logging: CLOUD_LOGGING_ONLY
